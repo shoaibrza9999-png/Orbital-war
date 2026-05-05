@@ -69,18 +69,6 @@ def agent(observation, configuration):
 
     comet_ids = set(observation.get("comet_planet_ids", []))
 
-    target_incoming = {t[0]: 0 for t in target_planets}
-    for f in my_fleets:
-        fx, fy = f[2], f[3]
-        f_angle = f[4]
-        for t in target_planets:
-            tx, ty = t[2], t[3]
-            angle_to = math.atan2(ty - fy, tx - fx)
-            diff = abs((f_angle - angle_to + math.pi) % (2*math.pi) - math.pi)
-            if diff < 0.2:
-                target_incoming[t[0]] += f[6]
-                break
-
     for p in my_planets:
         available_ships = p[5] - reserved_ships[p[0]]
         available_ships = max(0, available_ships - 5)
@@ -108,29 +96,13 @@ def agent(observation, configuration):
                     if t[1] != -1:
                         future_garrison += t[6] * int(dt)
 
-                    future_garrison -= target_incoming[t[0]]
-
                     if ships_to_send > future_garrison + 5:
-
-                        enemy_bonus = 1.0
+                        enemy_bonus = 2.0 if (t[1] != -1 and t[1] != me) else 1.0
                         score = (t[6] * enemy_bonus) / max(1, dt)
-
-                        # Add HUGE bonus to NEUTRAL planets to expand way faster early game
-                        if t[1] == -1:
-                            score += 10.0
-
-                        # Tie break by subtracting dt so we always pick the CLOSEST of identical targets
-                        score -= (dt * 0.00001)
-
                         if score > best_score:
                             best_score = score
                             best_target = t
                             best_angle = angle
-                            # Instead of sending the full massive fraction when we only need a few ships,
-                            # we can compute how much is actually needed and send only that + a small buffer.
-                            # But we compute intercept using `ships_to_send`. If we send fewer, we're slower.
-                            # The opponent always sends ships_to_send.
-                            # Let's send exactly ships_to_send to ensure we maintain speed.
                             best_ships = ships_to_send
 
             if best_target:
