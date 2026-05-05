@@ -1,6 +1,6 @@
 import math
 
-def new_agent(observation, configuration):
+def agent(observation, configuration):
     maxSpeed = configuration.shipSpeed
     angular_velocity = observation.angular_velocity
     me = observation.player
