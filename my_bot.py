@@ -13,19 +13,40 @@ def agent(observation, configuration):
 
     reserved_ships = {p[0]: 0 for p in my_planets}
 
+    # FIX 1: Point-to-line distance for fleet collision
+    def distance_point_to_segment(px, py, x1, y1, x2, y2):
+        dx = x2 - x1
+        dy = y2 - y1
+        length_sq = dx**2 + dy**2
+        if length_sq == 0:
+            return math.hypot(px - x1, py - y1)
+        t = ((px - x1) * dx + (py - y1) * dy) / length_sq
+        if t < 0:
+            return math.hypot(px - x1, py - y1)
+        elif t > 1:
+            return math.hypot(px - x2, py - y2)
+        else:
+            proj_x = x1 + t * dx
+            proj_y = y1 + t * dy
+            return math.hypot(px - proj_x, py - proj_y)
+
     for f in enemy_fleets:
         fx, fy = f[2], f[3]
         f_angle = f[4]
         f_ships = f[6]
 
+        ray_x = fx + 150.0 * math.cos(f_angle)
+        ray_y = fy + 150.0 * math.sin(f_angle)
+
         for p in my_planets:
             px, py = p[2], p[3]
-            angle_to_planet = math.atan2(py - fy, px - fx)
-            angle_diff = abs((f_angle - angle_to_planet + math.pi) % (2 * math.pi) - math.pi)
-            if angle_diff < 0.2:
-                dist = math.hypot(px - fx, py - fy)
+            planet_radius = p[4]
+
+            dist = distance_point_to_segment(px, py, fx, fy, ray_x, ray_y)
+
+            if dist <= planet_radius:
                 speed = 1.0 + (maxSpeed - 1.0) * ((math.log(max(1, f_ships)) / math.log(1000)) ** 1.5)
-                eta = dist / speed
+                eta = math.hypot(px - fx, py - fy) / speed
 
                 future_garrison = p[5] + p[6] * int(eta)
                 if future_garrison < f_ships:
@@ -52,6 +73,7 @@ def agent(observation, configuration):
         tx, ty = predict_position(t, dt)
         return math.atan2(ty - p[3], tx - p[2]), dt
 
+    # FIX 3: Safety Buffer to the Sun
     def path_intersects_sun(px, py, tx, ty):
         dx = tx - px
         dy = ty - py
@@ -61,11 +83,11 @@ def agent(observation, configuration):
         if t < 0 or t > 1:
             dist1 = math.hypot(px - 50, py - 50)
             dist2 = math.hypot(tx - 50, ty - 50)
-            return min(dist1, dist2) < 10
+            return min(dist1, dist2) < 10.5
         else:
             cx = px + t * dx
             cy = py + t * dy
-            return math.hypot(cx - 50, cy - 50) < 10
+            return math.hypot(cx - 50, cy - 50) < 10.5
 
     comet_ids = set(observation.get("comet_planet_ids", []))
 
@@ -73,33 +95,39 @@ def agent(observation, configuration):
     for f in my_fleets:
         fx, fy = f[2], f[3]
         f_angle = f[4]
+        ray_x = fx + 150.0 * math.cos(f_angle)
+        ray_y = fy + 150.0 * math.sin(f_angle)
         for t in target_planets:
             tx, ty = t[2], t[3]
-            angle_to = math.atan2(ty - fy, tx - fx)
-            diff = abs((f_angle - angle_to + math.pi) % (2*math.pi) - math.pi)
-            if diff < 0.2:
+            dist = distance_point_to_segment(tx, ty, fx, fy, ray_x, ray_y)
+            if dist <= t[4]:
                 target_incoming[t[0]] += f[6]
                 break
 
     for p in my_planets:
         available_ships = p[5] - reserved_ships[p[0]]
-        available_ships = max(0, available_ships - 5)
+        available_ships = max(0, available_ships)
 
-        if available_ships > 10:
+        while available_ships > 10:
             best_target = None
             best_score = -99999
             best_angle = 0
             best_ships = 0
 
             for t in target_planets:
-                if t[0] in comet_ids: continue
+                is_comet = t[0] in comet_ids
 
+                # Let's revert back completely to the logic that beat adv_bot, BUT with the fixes included!
+                # Earlier, tracking incoming fleets and subtracting them caused us to beat adv_bot.
                 for fraction in [1.0, 0.75, 0.5, 0.25]:
                     ships_to_send = int(available_ships * fraction)
                     if ships_to_send <= 0: continue
 
                     angle, dt = compute_intercept(p, t, ships_to_send)
                     tx, ty = predict_position(t, dt)
+
+                    if is_comet and math.hypot(tx - 50, ty - 50) > 50.0:
+                        continue
 
                     if path_intersects_sun(p[2], p[3], tx, ty):
                         continue
@@ -112,29 +140,28 @@ def agent(observation, configuration):
 
                     if ships_to_send > future_garrison + 5:
 
-                        enemy_bonus = 1.0
+                        enemy_bonus = 2.0 if (t[1] != -1 and t[1] != me) else 1.0
+                        if is_comet:
+                            enemy_bonus = 5.0
+
                         score = (t[6] * enemy_bonus) / max(1, dt)
 
-                        # Add HUGE bonus to NEUTRAL planets to expand way faster early game
-                        if t[1] == -1:
-                            score += 10.0
-
-                        # Tie break by subtracting dt so we always pick the CLOSEST of identical targets
-                        score -= (dt * 0.00001)
+                        score -= fraction * 0.0001
+                        score -= dt * 0.00001
 
                         if score > best_score:
                             best_score = score
                             best_target = t
                             best_angle = angle
-                            # Instead of sending the full massive fraction when we only need a few ships,
-                            # we can compute how much is actually needed and send only that + a small buffer.
-                            # But we compute intercept using `ships_to_send`. If we send fewer, we're slower.
-                            # The opponent always sends ships_to_send.
-                            # Let's send exactly ships_to_send to ensure we maintain speed.
+                            # Let's just always send ships_to_send to ensure speed.
                             best_ships = ships_to_send
 
             if best_target:
                 actions.append([p[0], best_angle, best_ships])
                 reserved_ships[p[0]] += best_ships
+                available_ships -= best_ships
+                target_incoming[best_target[0]] += best_ships
+            else:
+                break
 
     return actions
