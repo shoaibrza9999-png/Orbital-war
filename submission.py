@@ -1,21 +1,17 @@
 import math
 
-def agent(observation, configuration):
-    # Orbit wars rules
+def new_agent(observation, configuration):
     maxSpeed = configuration.shipSpeed
     angular_velocity = observation.angular_velocity
     me = observation.player
     my_planets = [p for p in observation.planets if p[1] == me]
     target_planets = [p for p in observation.planets if p[1] != me]
     enemy_fleets = [f for f in observation.fleets if f[1] != me]
-    my_fleets = [f for f in observation.fleets if f[1] == me]
 
     actions = []
 
-    # Track reserved ships per planet
     reserved_ships = {p[0]: 0 for p in my_planets}
 
-    # Simple defense mechanism
     for f in enemy_fleets:
         fx, fy = f[2], f[3]
         f_angle = f[4]
@@ -23,7 +19,6 @@ def agent(observation, configuration):
 
         for p in my_planets:
             px, py = p[2], p[3]
-            # Check if fleet is heading towards planet
             angle_to_planet = math.atan2(py - fy, px - fx)
             angle_diff = abs((f_angle - angle_to_planet + math.pi) % (2 * math.pi) - math.pi)
             if angle_diff < 0.2:
@@ -71,24 +66,22 @@ def agent(observation, configuration):
             cy = py + t * dy
             return math.hypot(cx - 50, cy - 50) < 10
 
-    # Consider comet targets
     comet_ids = set(observation.get("comet_planet_ids", []))
 
     for p in my_planets:
         available_ships = p[5] - reserved_ships[p[0]]
-        available_ships = max(0, available_ships - 5)
+        available_ships = max(0, available_ships - 3)
 
-        if available_ships > 10:
+        if available_ships > 25:
             best_target = None
             best_score = -99999
             best_angle = 0
             best_ships = 0
 
             for t in target_planets:
-                # Comets are fast and might disappear, handle carefully or ignore
-                if t[0] in comet_ids: continue # skip comets for now
+                if t[0] in comet_ids: continue
 
-                for fraction in [1.0, 0.75, 0.5, 0.25]:
+                for fraction in [1.0, 0.5]:
                     ships_to_send = int(available_ships * fraction)
                     if ships_to_send <= 0: continue
 
@@ -102,9 +95,11 @@ def agent(observation, configuration):
                     if t[1] != -1:
                         future_garrison += t[6] * int(dt)
 
-                    if ships_to_send > future_garrison + 5:
-                        enemy_bonus = 2.0 if (t[1] != -1 and t[1] != me) else 1.0
+                    if ships_to_send > future_garrison + 3:
+
+                        enemy_bonus = 1.5 if t[1] != -1 else 1.0
                         score = (t[6] * enemy_bonus) / max(1, dt)
+
                         if score > best_score:
                             best_score = score
                             best_target = t
