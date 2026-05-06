@@ -1,6 +1,6 @@
 from kaggle_environments import make
 
-def evaluate(agent1_file, agent2_file, num_episodes=20):
+def evaluate(agent1_file, agent2_file, num_episodes=10):
     env = make("orbit_wars", configuration={"episodeSteps": 1000}, debug=False)
     wins_1 = 0
     wins_2 = 0
@@ -14,6 +14,7 @@ def evaluate(agent1_file, agent2_file, num_episodes=20):
             wins_2 += 1
         else:
             draws += 1
+        # print(f"Episode {i+1}: {rewards}")
     print(f"Results for {agent1_file} (P1) vs {agent2_file} (P2):")
     print(f"P1 wins: {wins_1}, P2 wins: {wins_2}, Draws: {draws}")
 

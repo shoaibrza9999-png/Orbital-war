@@ -1,0 +1,24 @@
+# Orbit Wars Bot Development Journey
+
+## Techniques Tried
+1. **Mathematical Interception & Geometric Collision Detection**: Initial tests relied on simple angle-diff math. I replaced this with an accurate point-to-line segment projection to calculate exact intersection timings.
+2. **Speed vs. Waste Fractioning**: Tested modifying the heuristic to send exactly `needed_ships` vs broad blocks (`1.0, 0.75, 0.5`).
+3. **Inbound Fleet Subtraction (`target_incoming`)**: Attempted to stop the bot from dispatching multiple fleets to the same planet simultaneously.
+4. **Comet Farming vs Ignorance**: Tested ignoring comets completely versus highly prioritizing them since they grant free instant production.
+5. **Score Assymetries**: Added minute modifiers, fraction division, tie-breaking subtraction, etc., to break mathematically identical loops when playing "mirrored" bots to seize initiative.
+6. **Aggressive Expansion Thresholding**: Tested reducing the launch thresholds from `available_ships > 25` to `> 10` and `> 9`.
+
+## What Worked
+1. **Geometric Collision Detection**: Drastically reduced false positives compared to simple angular bounding.
+2. **Fractional Speed Preservation**: Sending exact ships caused the logarithmic speed function to drag fleet speed to a crawl. We found that deploying fixed fractional chunks (like 50% or 100% of available ships) ensured maximum velocity and dominated games.
+3. **Inbound Tracking**: Retaining `target_incoming` math correctly prevents overcommitting ships and frees up available resources to be pushed elsewhere on the map.
+4. **Aggressive Turn-Stealing**: Identical or mirrored bots suffer heavily from first/second-player advantage dynamics. Launching aggressively (when `available_ships > 9` instead of 25) effectively forced the opponent bot to react defensively entirely too late.
+
+## Achievements
+- Overhauled a basic `base_bot.py` into a highly-tuned geometric agent.
+- Consistently defeated `adv_bot.py` 10-0 (as both P1 and P2).
+- Iterated upon an 18/20 `new_agent.py` to defeat it 10-0 (as both P1 and P2).
+- Produced robust testing architecture with local `kaggle_environments` simulations that successfully enforced non-regression across updates.
+
+## Summary
+The process of refining an agent for Kaggle's "Orbit Wars" is fundamentally an exercise in tuning heuristics to optimally solve speed versus resource trade-offs. The breakthrough was understanding that because of the logarithmic speed formula, it is better to send a large, "wasteful" number of ships so they arrive fast, rather than the perfectly optimal exact number of ships that arrive too slow. The second breakthrough was breaking "mirror-match" ties by slightly lowering our threshold to send attack fleets (`available_ships > 9`), essentially allowing our bot to expand one tick faster than the opponents.

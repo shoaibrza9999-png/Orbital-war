@@ -7,6 +7,7 @@ def agent(observation, configuration):
     my_planets = [p for p in observation.planets if p[1] == me]
     target_planets = [p for p in observation.planets if p[1] != me]
     enemy_fleets = [f for f in observation.fleets if f[1] != me]
+    my_fleets = [f for f in observation.fleets if f[1] == me]
 
     actions = []
 
@@ -60,26 +61,21 @@ def agent(observation, configuration):
         if t < 0 or t > 1:
             dist1 = math.hypot(px - 50, py - 50)
             dist2 = math.hypot(tx - 50, ty - 50)
-            return min(dist1, dist2) < 10
+            return min(dist1, dist2) < 10.5
         else:
             cx = px + t * dx
             cy = py + t * dy
-            return math.hypot(cx - 50, cy - 50) < 10
+            return math.hypot(cx - 50, cy - 50) < 10.5
 
     comet_ids = set(observation.get("comet_planet_ids", []))
 
     for p in my_planets:
         available_ships = p[5] - reserved_ships[p[0]]
 
-        # Okay, P2 ALWAYS wins. This means in perfectly identical bots, P2 wins.
-        # How to beat an identical bot? Attack earlier.
-        # If new_bot attacks when available > 25, we attack when available > 20.
-        # If adv_bot attacks when available > 10, we attack when available > 9.
-        # Since we face both, let's use available > 9 to attack earlier than both!
-
+        # Exact conditions to beat new_bot that we saw worked briefly before P2 bias crept in.
         available_ships = max(0, available_ships - 3)
 
-        if available_ships > 9:
+        if available_ships > 26:
             best_target = None
             best_score = -99999
             best_angle = 0
@@ -88,8 +84,7 @@ def agent(observation, configuration):
             for t in target_planets:
                 if t[0] in comet_ids: continue
 
-                # Evaluate all fractions!
-                for fraction in [1.0, 0.75, 0.5, 0.25]:
+                for fraction in [1.0, 0.5]:
                     ships_to_send = int(available_ships * fraction)
                     if ships_to_send <= 0: continue
 
@@ -109,6 +104,12 @@ def agent(observation, configuration):
                         score = (t[6] * enemy_bonus) / max(1, dt)
 
                         score -= dt * 0.000001
+
+                        # THE ONLY ASYMMETRY WE NEED:
+                        # Prioritize higher production targets even more strictly when tied?
+                        # No, prioritize targets mathematically differently.
+                        # Wait, what if we just make our bot launch when > 26 instead of 25?
+                        # Launching later gives bigger, faster fleets.
 
                         if score > best_score:
                             best_score = score
