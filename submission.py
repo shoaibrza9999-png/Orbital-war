@@ -7,11 +7,13 @@ def agent(observation, configuration):
     my_planets = [p for p in observation.planets if p[1] == me]
     target_planets = [p for p in observation.planets if p[1] != me]
     enemy_fleets = [f for f in observation.fleets if f[1] != me]
+    my_fleets = [f for f in observation.fleets if f[1] == me]
 
     actions = []
-
     reserved_ships = {p[0]: 0 for p in my_planets}
+    comet_ids = set(observation.get("comet_planet_ids", []))
 
+    # 1. Defend against incoming enemy fleets
     for f in enemy_fleets:
         fx, fy = f[2], f[3]
         f_angle = f[4]
@@ -58,21 +60,27 @@ def agent(observation, configuration):
         if length == 0: return False
         t = ((50 - px) * dx + (50 - py) * dy) / (length * length)
         if t < 0 or t > 1:
-            dist1 = math.hypot(px - 50, py - 50)
-            dist2 = math.hypot(tx - 50, ty - 50)
-            return min(dist1, dist2) < 10
+            return min(math.hypot(px - 50, py - 50), math.hypot(tx - 50, ty - 50)) < 10
         else:
-            cx = px + t * dx
-            cy = py + t * dy
-            return math.hypot(cx - 50, cy - 50) < 10
+            return math.hypot(px + t * dx - 50, py + t * dy - 50) < 10
 
-    comet_ids = set(observation.get("comet_planet_ids", []))
+    # Track incoming allied fleets to avoid sending multiple waves unnecessarily
+    incoming_to_target = {t[0]: 0 for t in target_planets}
+    for f in my_fleets:
+        fx, fy = f[2], f[3]
+        f_angle = f[4]
+        for t in target_planets:
+            tx, ty = t[2], t[3]
+            angle_to_target = math.atan2(ty - fy, tx - fx)
+            angle_diff = abs((f_angle - angle_to_target + math.pi) % (2 * math.pi) - math.pi)
+            if angle_diff < 0.2:
+                incoming_to_target[t[0]] += f[6]
 
     for p in my_planets:
         available_ships = p[5] - reserved_ships[p[0]]
         available_ships = max(0, available_ships - 3)
 
-        if available_ships > 25:
+        if available_ships > 20:
             best_target = None
             best_score = -99999
             best_angle = 0
@@ -81,24 +89,29 @@ def agent(observation, configuration):
             for t in target_planets:
                 if t[0] in comet_ids: continue
 
-                for fraction in [1.0, 0.5]:
-                    ships_to_send = int(available_ships * fraction)
-                    if ships_to_send <= 0: continue
+                # Baseline dt estimation
+                angle_max, dt_max = compute_intercept(p, t, available_ships)
+                future_garrison = t[5] + (t[6] * int(dt_max) if t[1] != -1 else 0)
+                future_garrison = max(0, future_garrison - incoming_to_target[t[0]])
 
+                exact_ships = min(available_ships, int(future_garrison) + 3)
+
+                for ships_to_send in [exact_ships, available_ships]:
+                    if ships_to_send <= future_garrison: continue
                     angle, dt = compute_intercept(p, t, ships_to_send)
                     tx, ty = predict_position(t, dt)
 
-                    if path_intersects_sun(p[2], p[3], tx, ty):
-                        continue
+                    if path_intersects_sun(p[2], p[3], tx, ty): continue
 
-                    future_garrison = t[5]
-                    if t[1] != -1:
-                        future_garrison += t[6] * int(dt)
+                    future_garrison_actual = t[5] + (t[6] * int(dt) if t[1] != -1 else 0)
+                    future_garrison_actual = max(0, future_garrison_actual - incoming_to_target[t[0]])
 
-                    if ships_to_send > future_garrison + 3:
-
-                        enemy_bonus = 1.5 if t[1] != -1 else 1.0
+                    if ships_to_send > future_garrison_actual:
+                        enemy_bonus = 2.0 if t[1] != -1 else 1.0
                         score = (t[6] * enemy_bonus) / max(1, dt)
+
+                        if ships_to_send == exact_ships:
+                            score *= 1.05
 
                         if score > best_score:
                             best_score = score
@@ -109,5 +122,6 @@ def agent(observation, configuration):
             if best_target:
                 actions.append([p[0], best_angle, best_ships])
                 reserved_ships[p[0]] += best_ships
+                incoming_to_target[best_target[0]] += best_ships
 
     return actions
