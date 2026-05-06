@@ -12,20 +12,36 @@ def agent(observation, configuration):
 
     reserved_ships = {p[0]: 0 for p in my_planets}
 
+    def distance_point_to_segment(px, py, x1, y1, x2, y2):
+        dx = x2 - x1
+        dy = y2 - y1
+        length_sq = dx**2 + dy**2
+        if length_sq == 0:
+            return math.hypot(px - x1, py - y1)
+        t = ((px - x1) * dx + (py - y1) * dy) / length_sq
+        if t < 0:
+            return math.hypot(px - x1, py - y1)
+        elif t > 1:
+            return math.hypot(px - x2, py - y2)
+        else:
+            proj_x = x1 + t * dx
+            proj_y = y1 + t * dy
+            return math.hypot(px - proj_x, py - proj_y)
+
     for f in enemy_fleets:
         fx, fy = f[2], f[3]
         f_angle = f[4]
         f_ships = f[6]
 
+        ray_x = fx + 150.0 * math.cos(f_angle)
+        ray_y = fy + 150.0 * math.sin(f_angle)
+
         for p in my_planets:
             px, py = p[2], p[3]
-            angle_to_planet = math.atan2(py - fy, px - fx)
-            angle_diff = abs((f_angle - angle_to_planet + math.pi) % (2 * math.pi) - math.pi)
-            if angle_diff < 0.2:
-                dist = math.hypot(px - fx, py - fy)
+            dist = distance_point_to_segment(px, py, fx, fy, ray_x, ray_y)
+            if dist <= p[4]:
                 speed = 1.0 + (maxSpeed - 1.0) * ((math.log(max(1, f_ships)) / math.log(1000)) ** 1.5)
-                eta = dist / speed
-
+                eta = math.hypot(px - fx, py - fy) / speed
                 future_garrison = p[5] + p[6] * int(eta)
                 if future_garrison < f_ships:
                     reserved_ships[p[0]] += f_ships
@@ -70,9 +86,10 @@ def agent(observation, configuration):
 
     for p in my_planets:
         available_ships = p[5] - reserved_ships[p[0]]
-        available_ships = max(0, available_ships - 3)
 
-        if available_ships > 25:
+        available_ships = max(0, available_ships - 2)
+
+        if available_ships > 8:
             best_target = None
             best_score = -99999
             best_angle = 0
@@ -81,9 +98,13 @@ def agent(observation, configuration):
             for t in target_planets:
                 if t[0] in comet_ids: continue
 
-                for fraction in [1.0, 0.5]:
+                for fraction in [1.0, 0.75, 0.5, 0.25]:
                     ships_to_send = int(available_ships * fraction)
                     if ships_to_send <= 0: continue
+
+                    ships_to_send += 1
+                    if ships_to_send > available_ships + 2:
+                        ships_to_send -= 1
 
                     angle, dt = compute_intercept(p, t, ships_to_send)
                     tx, ty = predict_position(t, dt)
@@ -95,10 +116,12 @@ def agent(observation, configuration):
                     if t[1] != -1:
                         future_garrison += t[6] * int(dt)
 
-                    if ships_to_send > future_garrison + 3:
+                    if ships_to_send > future_garrison + 2:
 
-                        enemy_bonus = 1.5 if t[1] != -1 else 1.0
+                        enemy_bonus = 2.0 if (t[1] != -1 and t[1] != me) else 1.0
                         score = (t[6] * enemy_bonus) / max(1, dt)
+
+                        score -= dt * 0.000003
 
                         if score > best_score:
                             best_score = score

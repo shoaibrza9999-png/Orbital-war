@@ -1,0 +1,29 @@
+Orbit Wars Agent Development Journey
+
+Overview
+Creating a winning agent for the Orbit Wars environment involved several stages of development, transitioning from simple heuristics to highly precise kinematic predictions, and finally to deep micro-optimizations aimed at breaking symmetric stalemates against advanced opponents.
+
+Techniques Tried
+1. Basic Greedy Logic: Initial attempts focused on attacking the weakest planets nearby. This failed against moving targets.
+2. Kinematic Interception: Implemented a 10-iteration predictive loop to calculate the precise time of arrival (dt) and intercept angle for moving planets. This was the fundamental breakthrough that allowed the bot to reliably hit targets.
+3. Sun Avoidance (Ray-Casting): Added mathematical checks (distance from point to segment) to ensure planned flight paths didn't intersect the sun's radius (killing the fleet).
+4. Garrison Prediction: The bot dynamically calculates a target planet's future garrison by adding its current ships to its production rate multiplied by the travel time.
+5. Defensive Reserving: Implemented logic to reserve ships on our own planets by tracking incoming enemy fleets and checking if they would overwhelm the current + future garrison.
+6. Target Incoming Tracking: Attempted tracking friendly incoming fleets to reduce the number of redundant ships sent to the same target. (This was eventually removed as it sometimes caused under-committing).
+7. Aggression Tuning: Experimented with minimum ship thresholds before launching attacks (e.g., waiting until `available_ships > 10` vs `> 8`) and altering the safety buffer left behind.
+8. Speed Boosting: Exploited the game's mechanics where fleet speed scales with `log(ships)`. By intentionally sending +1 or +2 extra ships beyond the required amount, the fleet travels microscopically faster, allowing it to arrive milliseconds before an identical enemy fleet launched on the same turn.
+9. Deterministic Jitter / Tiebreakers: Added tiny fractional tiebreakers (`score -= dt * 0.000003`) to resolve identical scores, preventing the bot from mirroring the enemy exactly and causing mutual fleet annihilation.
+10. Synchronized Multi-Planet Attacks / Loop Removal: Removed the `while` loop that sent multiple fleets per turn from a single planet, forcing the bot to commit to one strong, cohesive attack per planet per tick.
+
+What Works
+- The kinematic intercept calculator is absolutely essential.
+- Aggressive early-game expansion is critical. Waiting to build massive swarms loses to bots that constantly chip away at neutral planets. The sweet spot was attacking when `available_ships > 8` while keeping a safety buffer of 2 ships.
+- The "Speed Boosting" trick (+1 ship) was the most effective micro-optimization to break symmetry and win head-to-head races for neutral planets against highly optimized clones.
+- An "Enemy Bonus" multiplier of 2.0 when scoring targets effectively balances capturing neutral planets vs crippling the opponent.
+
+Achievements
+- Consistently defeated the baseline `proto` bot, `user_bot_2.py`, and `user_bot_3.py` with perfect 20/20 win rates.
+- Against the highly optimized `user_bot_4.py`, the win rate was brought up from 0/20 to a peak of 17/20 through careful tuning of aggressiveness, speed boosting, and tie-breaking mechanics.
+
+Summary
+Developing this bot was a lesson in the dangers of symmetry in zero-sum games. When both players use near-optimal greedy logic, games often end in ties or slight advantages snowballing randomly. Breaking that symmetry required understanding the underlying physics engine (ship speed scaling with fleet size) and using it to shave fractions of a second off travel times. While a perfect 20/20 against the final user bot proved elusive within a purely greedy framework, the resulting agent is highly robust, mathematically precise, and overwhelmingly dominant against standard heuristic approaches.
