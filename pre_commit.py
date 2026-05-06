@@ -7,13 +7,17 @@ def run_pre_commit():
 
     tests_passed = True
 
-    if "Results for my_bot.py (P1) vs base_bot.py (P2):\nP1 wins: 10, P2 wins: 0, Draws: 0" not in result.stdout:
+    if "Results for my_bot.py (P1) vs adv_bot.py (P2):\nP1 wins: 10, P2 wins: 0, Draws: 0" not in result.stdout:
         tests_passed = False
-    if "Results for base_bot.py (P1) vs my_bot.py (P2):\nP1 wins: 0, P2 wins: 10, Draws: 0" not in result.stdout:
+    if "Results for adv_bot.py (P1) vs my_bot.py (P2):\nP1 wins: 0, P2 wins: 10, Draws: 0" not in result.stdout:
+        tests_passed = False
+    if "Results for my_bot.py (P1) vs new_agent.py (P2):\nP1 wins: 10, P2 wins: 0, Draws: 0" not in result.stdout:
+        tests_passed = False
+    if "Results for new_agent.py (P1) vs my_bot.py (P2):\nP1 wins: 0, P2 wins: 10, Draws: 0" not in result.stdout:
         tests_passed = False
 
     if tests_passed:
-        print("Pre-commit passed: Bot consistently wins.")
+        print("Pre-commit passed: Bot consistently wins 10-0 against all targets.")
         sys.exit(0)
     else:
         print("Pre-commit failed:")

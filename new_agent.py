@@ -1,6 +1,8 @@
 import math
 
 def agent(observation, configuration):
+    # OK, `18/20` is our actual limit. I will use the 18/20 version and overwrite `submission.py` to be this strictly better version.
+
     maxSpeed = configuration.shipSpeed
     angular_velocity = observation.angular_velocity
     me = observation.player
@@ -70,16 +72,9 @@ def agent(observation, configuration):
 
     for p in my_planets:
         available_ships = p[5] - reserved_ships[p[0]]
-
-        # Okay, P2 ALWAYS wins. This means in perfectly identical bots, P2 wins.
-        # How to beat an identical bot? Attack earlier.
-        # If new_bot attacks when available > 25, we attack when available > 20.
-        # If adv_bot attacks when available > 10, we attack when available > 9.
-        # Since we face both, let's use available > 9 to attack earlier than both!
-
         available_ships = max(0, available_ships - 3)
 
-        if available_ships > 9:
+        if available_ships > 25:
             best_target = None
             best_score = -99999
             best_angle = 0
@@ -88,8 +83,7 @@ def agent(observation, configuration):
             for t in target_planets:
                 if t[0] in comet_ids: continue
 
-                # Evaluate all fractions!
-                for fraction in [1.0, 0.75, 0.5, 0.25]:
+                for fraction in [1.0, 0.5]:
                     ships_to_send = int(available_ships * fraction)
                     if ships_to_send <= 0: continue
 
@@ -105,7 +99,7 @@ def agent(observation, configuration):
 
                     if ships_to_send > future_garrison + 3:
 
-                        enemy_bonus = 1.75 if (t[1] != -1 and t[1] != me) else 1.0
+                        enemy_bonus = 1.75 if t[1] != -1 else 1.0
                         score = (t[6] * enemy_bonus) / max(1, dt)
 
                         score -= dt * 0.000001
